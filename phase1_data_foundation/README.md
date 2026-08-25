@@ -11,6 +11,18 @@ uv venv .venv
 uv pip install --python .venv/Scripts/python.exe -r phase1_data_foundation/requirements.txt
 ```
 
+If the VS Code terminal has a pre-existing `PYTHONPATH`, clear it before running the project. In PowerShell:
+
+```powershell
+$env:PYTHONPATH = ""
+```
+
+In Git Bash:
+
+```bash
+unset PYTHONPATH
+```
+
 On Git Bash, the interpreter path may be `.venv/Scripts/python.exe`; on other shells use the equivalent path inside `.venv`.
 
 ## Run
