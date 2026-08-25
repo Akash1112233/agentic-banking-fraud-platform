@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: aml_platform
+      POSTGRES_USER: aml_user
+      POSTGRES_PASSWORD: ${AML_DB_PASSWORD:?Set AML_DB_PASSWORD in your shell first}
+    ports:
+      - "5432:5432"
+    volumes:
+      - aml_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aml_user -d aml_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  aml_postgres_data:
