@@ -39,4 +39,6 @@ phase2_ml_models/outputs/
 phase2_ml_models/models/
 ```
 
+The notebook also creates `threshold_metrics.json` and `threshold_tuning.png` after threshold tuning.
+
 These generated artifacts are ignored by Git. The notebook and documentation are committed.
