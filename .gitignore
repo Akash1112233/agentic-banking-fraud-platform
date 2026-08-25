@@ -1,0 +1,37 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Dataset files - keep downloaded Kaggle data local
+data/raw/*.csv
+data/raw/*.txt
+data/interim/*
+data/processed/*
+!data/processed/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ML artifacts and generated outputs
+*.pkl
+*.joblib
+*.model
+phase1_data_foundation/outputs/*
+!phase1_data_foundation/outputs/.gitkeep
+
+# Logs
+*.log
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
