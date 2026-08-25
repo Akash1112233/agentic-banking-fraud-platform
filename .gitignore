@@ -26,6 +26,8 @@ venv/
 *.model
 phase1_data_foundation/outputs/*
 !phase1_data_foundation/outputs/.gitkeep
+phase2_ml_models/outputs/*
+phase2_ml_models/models/*
 
 # Logs
 *.log
