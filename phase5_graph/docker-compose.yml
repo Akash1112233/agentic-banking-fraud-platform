@@ -1,0 +1,17 @@
+services:
+  neo4j:
+    image: neo4j:5.26-community
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in your shell first}
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1G
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - aml_neo4j_data:/data
+      - aml_neo4j_logs:/logs
+
+volumes:
+  aml_neo4j_data:
+  aml_neo4j_logs:
