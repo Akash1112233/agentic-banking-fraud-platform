@@ -60,7 +60,7 @@ def consume(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
             "group.id": os.getenv("KAFKA_CONSUMER_GROUP", "aml-scorer-v1"),
-            "auto.offset.reset": "earliest",
+            "auto.offset.reset": os.getenv("KAFKA_AUTO_OFFSET_RESET", "earliest"),
             "enable.auto.commit": False,
         }
     )
