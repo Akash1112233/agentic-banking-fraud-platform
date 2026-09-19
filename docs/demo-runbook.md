@@ -1,6 +1,6 @@
 # Review 2 demonstration runbook
 
-This runbook restores the verified Phase 1–5 demo without changing code.
+This runbook starts the verified AML detection, evidence, LLM interpretation, and dashboard demo.
 
 ## 1. Start Docker services
 
@@ -29,6 +29,9 @@ Open a second PowerShell terminal:
 cd C:\Users\akash\agentic-banking-fraud-platform
 $env:PYTHONPATH = ""
 $env:DATABASE_URL = "postgresql+psycopg://aml_user:your-local-postgres-password@localhost:5432/aml_platform"
+# Optional: enables the LLM analyst interpretation node.
+$env:OPENAI_API_KEY = "your-openai-api-key"
+$env:LLM_MODEL = "gpt-4o-mini"
 .venv\Scripts\python.exe -m uvicorn phase4_backend.app.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -82,20 +85,26 @@ RECEIVED_BY relationships: 1,000
 Use this order during the review:
 
 1. Show the project roadmap and completed phases.
-2. Show the XGBoost model and provisional threshold `0.55`.
+2. Show the XGBoost model and alert threshold `0.55`.
 3. Show the Kafka streaming architecture.
 4. Show `/health` and `/docs` in FastAPI.
-5. Show 21 persisted alerts from `/api/v1/alerts`.
-6. Show Neo4j account and transaction counts.
-7. Show one graph relationship query.
-8. Explain that Phases 6–10 are the remaining roadmap.
+5. Show the synthetic producer publishing a new transaction in real time.
+6. Show the consumer scoring it and creating an alert above threshold `0.55`.
+7. Show the investigation endpoint and dashboard evidence.
+8. Show the LLM analyst interpretation: conclusion, rationale, and recommended action.
+9. Explain that SHAP and graph evidence ground the LLM response; the LLM cannot invent missing evidence.
+10. State clearly that the output is a high-risk alert for human review, not proof of criminal activity.
 
-## 6. Remaining project work
+## 6. LLM interpretation notes
 
-- Phase 6: LangGraph investigation agents.
-- Phase 7: Evidence retrieval tools.
-- Phase 8: SHAP explanations and investigation reports.
-- Phase 9: React investigator dashboard.
-- Phase 10: Full human-in-the-loop integration testing.
+The LLM step is enabled only when `OPENAI_API_KEY` is present in the FastAPI process. It receives the alert, transaction, SHAP explanation, graph evidence, and evidence limitations as context. The API response exposes:
+
+- `llm_status`: `available`, `not_configured`, or `error:<type>`
+- `llm_interpretation.conclusion`
+- `llm_interpretation.rationale`
+- `llm_interpretation.recommended_action`
+- `llm_interpretation.confidence`
+
+If the key is absent or the provider fails, the evidence investigation still works and the dashboard clearly shows that the LLM interpretation is unavailable. Never commit the key or put it in screenshots.
 
 Keep passwords only in the current PowerShell session. Never place them in GitHub, screenshots, or the presentation.

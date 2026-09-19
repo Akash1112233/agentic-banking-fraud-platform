@@ -5,13 +5,17 @@ from typing import Any, TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from .evidence import EvidenceProvider
+from .llm import InvestigationInterpreter
 
 
 class InvestigationState(TypedDict, total=False):
     transaction_id: str
     provider: EvidenceProvider
+    interpreter: InvestigationInterpreter | None
     evidence: dict[str, Any]
     limitations: list[str]
+    interpretation: dict[str, Any] | None
+    llm_status: str
     report: dict[str, Any]
 
 
@@ -24,6 +28,8 @@ def _initial(state: InvestigationState) -> InvestigationState:
         "transaction_id": transaction_id,
         "evidence": {"alert": None, "transaction": None, "graph": None, "explanation": None},
         "limitations": [],
+        "interpretation": None,
+        "llm_status": "not_configured",
     }
 
 
@@ -64,6 +70,18 @@ def _retrieve_explanation(state: InvestigationState) -> InvestigationState:
     return {**state, "evidence": evidence, "limitations": limitations}
 
 
+def _interpret(state: InvestigationState) -> InvestigationState:
+    interpreter = state.get("interpreter")
+    limitations = list(state["limitations"])
+    if interpreter is None:
+        return {**state, "interpretation": None, "llm_status": "not_configured"}
+    try:
+        interpretation = interpreter.interpret(state["evidence"], limitations)
+    except Exception as error:
+        return {**state, "interpretation": None, "llm_status": f"error:{type(error).__name__}"}
+    return {**state, "interpretation": interpretation, "llm_status": "available"}
+
+
 def _synthesize(state: InvestigationState) -> InvestigationState:
     evidence = state["evidence"]
     limitations = list(state["limitations"])
@@ -77,12 +95,16 @@ def _synthesize(state: InvestigationState) -> InvestigationState:
         "transaction_id": state["transaction_id"],
         "status": status,
         "summary": (
-            "Investigation contains retrieved alert, transaction, graph, and model evidence."
+            "Investigation includes an LLM-generated analyst interpretation grounded in retrieved evidence."
+            if state.get("interpretation") is not None
+            else "Investigation contains retrieved alert, transaction, graph, and model evidence."
             if status == "complete"
             else "Investigation is limited to the evidence sources that were available."
         ),
         "evidence": evidence,
         "limitations": limitations,
+        "llm_status": state.get("llm_status", "not_configured"),
+        "llm_interpretation": state.get("interpretation"),
     }
     return {**state, "report": report}
 
@@ -94,19 +116,27 @@ def build_investigation_graph():
     graph.add_node("retrieve_transaction", _retrieve_transaction)
     graph.add_node("retrieve_graph", _retrieve_graph)
     graph.add_node("retrieve_explanation", _retrieve_explanation)
+    graph.add_node("interpret", _interpret)
     graph.add_node("synthesize", _synthesize)
     graph.add_edge(START, "initial")
     graph.add_edge("initial", "retrieve_alert")
     graph.add_edge("retrieve_alert", "retrieve_transaction")
     graph.add_edge("retrieve_transaction", "retrieve_graph")
     graph.add_edge("retrieve_graph", "retrieve_explanation")
-    graph.add_edge("retrieve_explanation", "synthesize")
+    graph.add_edge("retrieve_explanation", "interpret")
+    graph.add_edge("interpret", "synthesize")
     graph.add_edge("synthesize", END)
     return graph.compile()
 
 
-def run_investigation(transaction_id: str, provider: EvidenceProvider) -> dict[str, Any]:
+def run_investigation(
+    transaction_id: str,
+    provider: EvidenceProvider,
+    interpreter: InvestigationInterpreter | None = None,
+) -> dict[str, Any]:
     if not str(transaction_id).strip():
         raise ValueError("transaction_id is required")
-    state = build_investigation_graph().invoke({"transaction_id": transaction_id, "provider": provider})
+    state = build_investigation_graph().invoke(
+        {"transaction_id": transaction_id, "provider": provider, "interpreter": interpreter}
+    )
     return state["report"]

@@ -22,6 +22,7 @@ def create_app(database_url: str | None = None, evidence_provider=None) -> FastA
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
 
     app = FastAPI(title="Agentic AML Platform API", version="0.1.0")
+    llm_interpreter = None
 
     if evidence_provider is None:
         model_explainer = None
@@ -30,6 +31,10 @@ def create_app(database_url: str | None = None, evidence_provider=None) -> FastA
             from phase8_explainability.explainer import ModelExplainer
 
             model_explainer = ModelExplainer(model_path)
+        if os.getenv("OPENAI_API_KEY", "").strip():
+            from phase6_agents.llm import OpenAICompatibleInterpreter
+
+            llm_interpreter = OpenAICompatibleInterpreter()
         postgres_provider = PostgresEvidenceProvider(session_factory, model_explainer=model_explainer)
         neo4j_uri = os.getenv("NEO4J_URI")
         if neo4j_uri:
@@ -86,7 +91,7 @@ def create_app(database_url: str | None = None, evidence_provider=None) -> FastA
 
     @app.get("/api/v1/investigations/{transaction_id}")
     def investigate(transaction_id: str):
-        return run_investigation(transaction_id, evidence_provider)
+        return run_investigation(transaction_id, evidence_provider, llm_interpreter)
 
     @app.get("/api/v1/explanations/{transaction_id}")
     def explanation(transaction_id: str):

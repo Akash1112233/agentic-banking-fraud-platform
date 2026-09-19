@@ -52,3 +52,27 @@ def test_missing_alert_does_not_create_a_report_from_assumptions():
 def test_workflow_rejects_blank_transaction_id():
     with pytest.raises(ValueError, match="transaction_id is required"):
         run_investigation("", provider())
+
+
+def test_llm_interpreter_receives_grounded_evidence_and_returns_analysis():
+    class FakeInterpreter:
+        def __init__(self):
+            self.received = None
+
+        def interpret(self, evidence, limitations):
+            self.received = (evidence, limitations)
+            return {
+                "conclusion": "High priority review",
+                "rationale": "The risk score exceeds the configured threshold.",
+                "recommended_action": "Review account history and counterparties.",
+                "confidence": "high",
+                "evidence_used": ["alert", "transaction", "explanation"],
+                "limitations": limitations,
+            }
+
+    interpreter = FakeInterpreter()
+    result = run_investigation("tx-001", provider(), interpreter)
+
+    assert result["llm_status"] == "available"
+    assert result["llm_interpretation"]["conclusion"] == "High priority review"
+    assert interpreter.received[0]["alert"]["risk_probability"] == 0.91

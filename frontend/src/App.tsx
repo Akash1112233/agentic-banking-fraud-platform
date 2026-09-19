@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, Network, RefreshC
 
 type Alert = { id: number; transaction_id: string; risk_probability: number; status: string; created_at: string }
 type Evidence = { alert: Record<string, unknown> | null; transaction: Record<string, unknown> | null; graph: { paths?: Array<Record<string, unknown>> } | null; explanation: { top_positive?: Array<Record<string, unknown>>; top_negative?: Array<Record<string, unknown>>; risk_probability?: number; source?: string } | null }
-type Investigation = { transaction_id: string; status: string; summary: string; evidence: Evidence; limitations: string[] }
+type Investigation = { transaction_id: string; status: string; summary: string; evidence: Evidence; limitations: string[]; llm_status?: string; llm_interpretation?: { conclusion?: string; rationale?: string; recommended_action?: string; confidence?: string; evidence_used?: string[]; limitations?: string[] } | null }
 
 const formatProbability = (value: number) => `${(value * 100).toFixed(1)}%`
 const display = (value: unknown) => value === null || value === undefined || value === '' ? '—' : String(value)
@@ -47,6 +47,7 @@ export default function App() {
   const selectedAlert = alerts.find(alert => alert.transaction_id === selectedId)
   const transaction = investigation?.evidence.transaction ?? {}
   const explanation = investigation?.evidence.explanation
+  const llmInterpretation = investigation?.llm_interpretation
   const graphPaths = investigation?.evidence.graph?.paths ?? []
 
   return <div className="app-shell">
@@ -76,6 +77,7 @@ export default function App() {
               <article className="evidence-card panel"><div className="card-title"><span className="card-icon gold"><Network size={16} /></span><div><h3>Graph evidence</h3><small>Neo4j</small></div></div>{graphPaths.length ? <div className="path-list">{graphPaths.slice(0, 4).map((path, index) => <div className="path-item" key={index}><span>{display(path.sender)}</span><b>→</b><span>{display(path.receiver)}</span><em>{display(path.hops)} hops</em></div>)}</div> : <p className="unavailable">No graph path was returned for this investigation.</p>}</article>
               <article className="evidence-card panel explanation-card"><div className="card-title"><span className="card-icon coral"><ArrowUpRight size={16} /></span><div><h3>Model explanation</h3><small>{display(explanation?.source)}</small></div></div><div className="contribution-columns"><div><label>Raises risk</label>{(explanation?.top_positive ?? []).slice(0, 3).map(item => <div className="contribution positive" key={String(item.feature)}><span>{String(item.feature)}</span><strong>+{Number(item.contribution).toFixed(3)}</strong></div>)}</div><div><label>Lowers risk</label>{(explanation?.top_negative ?? []).slice(0, 3).map(item => <div className="contribution negative" key={String(item.feature)}><span>{String(item.feature)}</span><strong>{Number(item.contribution).toFixed(3)}</strong></div>)}</div></div></article>
             </div>
+            <article className="analyst-card panel"><div className="card-title"><span className="card-icon teal"><ShieldCheck size={16} /></span><div><h3>LLM analyst interpretation</h3><small>{investigation.llm_status === 'available' ? 'Grounded in retrieved evidence' : `Status: ${display(investigation.llm_status)}`}</small></div></div>{llmInterpretation ? <div className="analyst-content"><strong>{display(llmInterpretation.conclusion)}</strong><p>{display(llmInterpretation.rationale)}</p><div className="recommended-action"><b>Recommended action</b><span>{display(llmInterpretation.recommended_action)}</span></div></div> : <p className="unavailable">Configure OPENAI_API_KEY on the FastAPI process to generate a plain-language analyst interpretation.</p>}</article>
             {!!investigation.limitations.length && <div className="limitations panel"><AlertTriangle size={16} /><div><strong>Evidence limitations</strong><span>{investigation.limitations.join(' • ')}</span></div></div>}
           </>}
         </section>
