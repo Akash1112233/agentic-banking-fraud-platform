@@ -33,6 +33,13 @@ phase3_streaming/outputs/*
 phase4_backend/*.db
 phase4_backend/*.db-*
 
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
 # Logs
 *.log
 

@@ -76,3 +76,16 @@ def test_probability_must_be_between_zero_and_one(client):
     response = client.post("/api/v1/predictions", json=payload)
 
     assert response.status_code == 422
+
+
+def test_investigation_endpoint_returns_persisted_evidence(client):
+    client.post("/api/v1/predictions", json=prediction_payload())
+
+    response = client.get("/api/v1/investigations/tx-phase4-001")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "partial"
+    assert body["evidence"]["alert"]["transaction_id"] == "tx-phase4-001"
+    assert body["evidence"]["transaction"]["from_account"] == "A001"
+    assert "graph evidence unavailable" in body["limitations"]
