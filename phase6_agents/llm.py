@@ -24,6 +24,59 @@ The confidence is your confidence in the interpretation, not a claim that fraud 
 """
 
 
+class OllamaInterpreter:
+    """Local Ollama interpreter using the native /api/chat endpoint."""
+
+    def __init__(
+        self,
+        model: str | None = None,
+        endpoint: str | None = None,
+        timeout: float = 120.0,
+    ) -> None:
+        self.model = model or os.getenv("OLLAMA_MODEL", "qwen3:14b")
+        self.endpoint = endpoint or os.getenv(
+            "OLLAMA_CHAT_URL", "http://127.0.0.1:11434/api/chat"
+        )
+        self.timeout = timeout
+
+    def interpret(self, evidence: dict[str, Any], limitations: list[str]) -> dict[str, Any]:
+        context = {"evidence": evidence, "limitations": limitations}
+        request_body = {
+            "model": self.model,
+            "stream": False,
+            "think": False,
+            "format": "json",
+            "options": {"temperature": 0.1},
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": "Interpret this investigation context:\n" + json.dumps(
+                        context, ensure_ascii=False, default=str
+                    ),
+                },
+            ],
+        }
+        request = Request(
+            self.endpoint,
+            data=json.dumps(request_body).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=self.timeout) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as error:
+            raise RuntimeError(f"Ollama interpretation request failed: {error}") from error
+
+        try:
+            content = payload["message"]["content"]
+            result = json.loads(content)
+        except (KeyError, TypeError, json.JSONDecodeError) as error:
+            raise RuntimeError("Ollama returned an invalid investigation JSON response") from error
+        return _validate_interpretation(result)
+
+
 class OpenAICompatibleInterpreter:
     """Small stdlib-only client for OpenAI-compatible chat completion APIs."""
 

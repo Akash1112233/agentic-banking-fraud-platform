@@ -29,9 +29,10 @@ Open a second PowerShell terminal:
 cd C:\Users\akash\agentic-banking-fraud-platform
 $env:PYTHONPATH = ""
 $env:DATABASE_URL = "postgresql+psycopg://aml_user:your-local-postgres-password@localhost:5432/aml_platform"
-# Optional: enables the LLM analyst interpretation node.
-$env:OPENAI_API_KEY = "your-openai-api-key"
-$env:LLM_MODEL = "gpt-4o-mini"
+# The default is local Ollama with qwen3:14b; no cloud API key is required.
+$env:LLM_PROVIDER = "ollama"
+$env:OLLAMA_MODEL = "qwen3:14b"
+$env:OLLAMA_CHAT_URL = "http://127.0.0.1:11434/api/chat"
 .venv\Scripts\python.exe -m uvicorn phase4_backend.app.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -97,7 +98,7 @@ Use this order during the review:
 
 ## 6. LLM interpretation notes
 
-The LLM step is enabled only when `OPENAI_API_KEY` is present in the FastAPI process. It receives the alert, transaction, SHAP explanation, graph evidence, and evidence limitations as context. The API response exposes:
+The local Ollama step is enabled by default with `OLLAMA_MODEL=qwen3:14b`. It receives the alert, transaction, SHAP explanation, graph evidence, and evidence limitations as context. Set `LLM_PROVIDER=openai` only if you intentionally switch to the cloud adapter and provide `OPENAI_API_KEY`.
 
 - `llm_status`: `available`, `not_configured`, or `error:<type>`
 - `llm_interpretation.conclusion`

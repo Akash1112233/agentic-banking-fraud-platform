@@ -31,7 +31,12 @@ def create_app(database_url: str | None = None, evidence_provider=None) -> FastA
             from phase8_explainability.explainer import ModelExplainer
 
             model_explainer = ModelExplainer(model_path)
-        if os.getenv("OPENAI_API_KEY", "").strip():
+        llm_provider = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
+        if llm_provider == "ollama":
+            from phase6_agents.llm import OllamaInterpreter
+
+            llm_interpreter = OllamaInterpreter()
+        elif llm_provider == "openai" and os.getenv("OPENAI_API_KEY", "").strip():
             from phase6_agents.llm import OpenAICompatibleInterpreter
 
             llm_interpreter = OpenAICompatibleInterpreter()
