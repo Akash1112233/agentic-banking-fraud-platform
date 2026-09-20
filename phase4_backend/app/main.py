@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -62,6 +63,10 @@ def create_app(database_url: str | None = None, evidence_provider=None) -> FastA
             yield db
         finally:
             db.close()
+
+    @app.get("/", include_in_schema=False)
+    def root():
+        return RedirectResponse(url="/docs")
 
     @app.get("/health", response_model=HealthResponse)
     def health(db: Session = Depends(get_db)):

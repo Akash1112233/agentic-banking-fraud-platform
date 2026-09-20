@@ -4,9 +4,10 @@ This project builds an evidence-based agentic AI platform for real-time anti-mon
 
 ## Current status
 
-- Project scaffold created
-- Dataset files are not committed to GitHub
-- Phase 1: Data Foundation is next
+- Phases 1–10 implemented: data foundation, model training, streaming, PostgreSQL, Neo4j, LangGraph evidence workflow, evidence tools, SHAP explanations, React dashboard, and integration testing
+- Local LLM interpretation uses Ollama with `qwen3:14b`; no OpenAI API key is required
+- Dataset files and credentials are intentionally not committed to GitHub
+- The complete local demonstration procedure is in `docs/demo-runbook.md`
 
 ## Dataset setup
 

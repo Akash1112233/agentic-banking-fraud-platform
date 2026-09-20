@@ -11,13 +11,10 @@ In PowerShell:
 ```powershell
 cd C:\Users\akash\agentic-banking-fraud-platform
 
-$env:AML_DB_PASSWORD = "your-local-postgres-password"
-$env:NEO4J_PASSWORD = "your-local-neo4j-password"
-
-docker compose -f phase3_streaming\docker-compose.yml up -d
-docker compose -f phase4_backend\docker-compose.yml up -d
-docker compose -f phase5_graph\docker-compose.yml up -d
+.\scripts\start-infrastructure.ps1 -DbPassword "your-local-postgres-password" -Neo4jPassword "your-local-neo4j-password"
 ```
+
+The script checks Docker and Ollama, then starts Redpanda, PostgreSQL, and Neo4j. It does not save either password to disk.
 
 Do not run `docker compose down -v`; named volumes contain the PostgreSQL and Neo4j data.
 
