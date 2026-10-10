@@ -14,6 +14,7 @@ export default function App() {
   const [investigation, setInvestigation] = useState<Investigation | null>(null)
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
+  const [investigationLoading, setInvestigationLoading] = useState(false)
   const [error, setError] = useState('')
 
   const loadAlerts = async () => {
@@ -23,25 +24,46 @@ export default function App() {
       const response = await fetch('/api/v1/alerts?status=open&limit=100')
       if (!response.ok) throw new Error(`Alerts request failed (${response.status})`)
       const body = await response.json()
-      setAlerts(body.items ?? [])
-      if (!selectedId && body.items?.length) setSelectedId(body.items[0].transaction_id)
+      const nextAlerts: Alert[] = body.items ?? []
+      setAlerts(nextAlerts)
+      if (!nextAlerts.some(alert => alert.transaction_id === selectedId)) {
+        setSelectedId(nextAlerts[0]?.transaction_id ?? '')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not reach the AML API')
     } finally { setLoading(false) }
   }
 
-  const loadInvestigation = async (transactionId: string) => {
-    if (!transactionId) return
-    setError('')
-    try {
-      const response = await fetch(`/api/v1/investigations/${encodeURIComponent(transactionId)}`)
-      if (!response.ok) throw new Error(`Investigation request failed (${response.status})`)
-      setInvestigation(await response.json())
-    } catch (err) { setError(err instanceof Error ? err.message : 'Investigation unavailable') }
-  }
-
   useEffect(() => { void loadAlerts() }, [])
-  useEffect(() => { void loadInvestigation(selectedId) }, [selectedId])
+  useEffect(() => {
+    const controller = new AbortController()
+    const requestedId = selectedId
+
+    if (!requestedId) {
+      setInvestigation(null)
+      setInvestigationLoading(false)
+      return () => controller.abort()
+    }
+
+    setInvestigation(null)
+    setInvestigationLoading(true)
+    setError('')
+    void (async () => {
+      try {
+        const response = await fetch(`/api/v1/investigations/${encodeURIComponent(requestedId)}`, { signal: controller.signal })
+        if (!response.ok) throw new Error(`Investigation request failed (${response.status})`)
+        const nextInvestigation: Investigation = await response.json()
+        if (nextInvestigation.transaction_id === requestedId) setInvestigation(nextInvestigation)
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        setError(err instanceof Error ? err.message : 'Investigation unavailable')
+      } finally {
+        if (!controller.signal.aborted) setInvestigationLoading(false)
+      }
+    })()
+
+    return () => controller.abort()
+  }, [selectedId])
 
   const filteredAlerts = useMemo(() => alerts.filter(alert => alert.transaction_id.toLowerCase().includes(query.toLowerCase())), [alerts, query])
   const selectedAlert = alerts.find(alert => alert.transaction_id === selectedId)
@@ -69,8 +91,9 @@ export default function App() {
           </div>
         </aside>
         <section className="detail-panel">
-          {!investigation && <div className="panel empty-detail"><Network size={38} /><h2>Select an alert</h2><p>Choose an item from the queue to retrieve its evidence.</p></div>}
-          {investigation && <>
+          {investigationLoading && <div className="panel empty-detail"><RefreshCw size={38} className="spin" /><h2>Loading investigation</h2><p>Retrieving transaction, SHAP, graph, and Ollama evidence for {selectedId}.</p></div>}
+          {!investigationLoading && !investigation && <div className="panel empty-detail"><Network size={38} /><h2>Select an alert</h2><p>Choose an item from the queue to retrieve its evidence.</p></div>}
+          {!investigationLoading && investigation && investigation.transaction_id === selectedId && <>
             <div className="investigation-header panel"><div><p className="eyebrow">Investigation / {investigation.status}</p><h2>{investigation.transaction_id}</h2><p className="summary">{investigation.summary}</p></div><div className="risk-score"><span>Risk score</span><strong>{formatProbability(Number(explanation?.risk_probability ?? selectedAlert?.risk_probability ?? 0))}</strong><div className="risk-track"><i style={{ width: `${Math.min(100, Number(explanation?.risk_probability ?? selectedAlert?.risk_probability ?? 0) * 100)}%` }} /></div></div></div>
             <div className="evidence-grid">
               <article className="evidence-card panel"><div className="card-title"><span className="card-icon teal"><CircleDot size={16} /></span><div><h3>Transaction evidence</h3><small>PostgreSQL</small></div></div><div className="kv-grid"><span>From account</span><strong>{display(transaction.from_account)}</strong><span>To account</span><strong>{display(transaction.to_account)}</strong><span>Amount paid</span><strong>{display(transaction.amount_paid)}</strong><span>Payment format</span><strong>{display(transaction.payment_format)}</strong></div></article>

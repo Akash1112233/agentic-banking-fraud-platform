@@ -24,6 +24,27 @@ The confidence is your confidence in the interpretation, not a claim that fraud 
 """
 
 
+INTERPRETATION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "conclusion": {"type": "string"},
+        "rationale": {"type": "string"},
+        "recommended_action": {"type": "string"},
+        "confidence": {"type": "string"},
+        "evidence_used": {"type": "array", "items": {"type": "string"}},
+        "limitations": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": [
+        "conclusion",
+        "rationale",
+        "recommended_action",
+        "confidence",
+        "evidence_used",
+        "limitations",
+    ],
+}
+
+
 class OllamaInterpreter:
     """Local Ollama interpreter using the native /api/chat endpoint."""
 
@@ -31,13 +52,13 @@ class OllamaInterpreter:
         self,
         model: str | None = None,
         endpoint: str | None = None,
-        timeout: float = 120.0,
+        timeout: float | None = None,
     ) -> None:
         self.model = model or os.getenv("OLLAMA_MODEL", "qwen3:14b")
         self.endpoint = endpoint or os.getenv(
             "OLLAMA_CHAT_URL", "http://127.0.0.1:11434/api/chat"
         )
-        self.timeout = timeout
+        self.timeout = timeout if timeout is not None else float(os.getenv("OLLAMA_TIMEOUT", "300"))
 
     def interpret(self, evidence: dict[str, Any], limitations: list[str]) -> dict[str, Any]:
         context = {"evidence": evidence, "limitations": limitations}
@@ -45,7 +66,7 @@ class OllamaInterpreter:
             "model": self.model,
             "stream": False,
             "think": False,
-            "format": "json",
+            "format": INTERPRETATION_SCHEMA,
             "options": {"temperature": 0.1},
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},

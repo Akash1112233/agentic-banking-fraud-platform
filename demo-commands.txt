@@ -1,0 +1,385 @@
+AGENTIC BANKING FRAUD PLATFORM - LECTURER DEMONSTRATION COMMANDS
+================================================================
+
+IMPORTANT
+---------
+1. Start Docker Desktop first and wait until Docker says Engine running.
+2. Replace YOUR_LOCAL_POSTGRES_PASSWORD and YOUR_LOCAL_NEO4J_PASSWORD with your local passwords.
+3. Never commit or screenshot passwords.
+4. Open each section in a separate PowerShell terminal.
+5. Start Terminal 4 before Terminal 5.
+6. Always compare the same transaction_id in the terminal and dashboard.
+
+VERY SIMPLE EXPLANATION
+------------------------
+This project has five important parts:
+
+1. Docker runs the databases and the message system.
+2. The producer creates fake banking transactions.
+3. The consumer scores each transaction for fraud.
+4. FastAPI saves the results and gives data to the dashboard.
+5. Ollama reads the evidence and writes a short analyst explanation.
+
+You do not need to type all commands in one terminal. Use one PowerShell
+window for each terminal section below.
+
+If you only want the main demonstration, use Terminals 0, 1, 2, 3, 4, 5,
+and 6 in that order.
+
+What the words mean:
+
+- producer = creates and sends fake transactions
+- consumer = receives transactions and calculates risk
+- FastAPI = the backend web server
+- PostgreSQL = stores transactions and alerts
+- Neo4j = stores account relationships
+- SHAP = explains why the model gave its score
+- Ollama = local AI that writes the human explanation
+- dashboard = the web page for the lecturer
+
+The dashboard is the main thing to show your lecturer. The terminal is only
+used to start the system and prove that the dashboard uses the real backend.
+
+TRANSACTION DEMO IDs
+--------------------
+The synthetic producer command below creates these three transactions:
+
+synthetic-000000009000
+synthetic-000000009001
+synthetic-000000009002
+
+================================================================
+TERMINAL 0 - CHECK OLLAMA
+================================================================
+
+ollama list
+
+The list should include:
+
+qwen3:14b
+
+If Ollama is not running, start it in this terminal and leave it running:
+
+ollama serve
+
+
+================================================================
+TERMINAL 1 - START DOCKER INFRASTRUCTURE
+================================================================
+
+cd C:\Users\akash\agentic-banking-fraud-platform
+
+.\scripts\start-infrastructure.ps1 `
+  -DbPassword "YOUR_LOCAL_POSTGRES_PASSWORD" `
+  -Neo4jPassword "YOUR_LOCAL_NEO4J_PASSWORD"
+
+Check the containers:
+
+docker compose -f phase3_streaming\docker-compose.yml ps
+docker compose -f phase4_backend\docker-compose.yml ps
+docker compose -f phase5_graph\docker-compose.yml ps
+
+Do not run this during the demonstration:
+
+docker compose down -v
+
+The -v option deletes database volumes.
+
+
+================================================================
+TERMINAL 2 - START FASTAPI WITH LOCAL OLLAMA
+================================================================
+
+cd C:\Users\akash\agentic-banking-fraud-platform
+
+$env:PYTHONPATH = ""
+$env:DATABASE_URL = "postgresql+psycopg://aml_user:YOUR_LOCAL_POSTGRES_PASSWORD@localhost:5432/aml_platform"
+$env:LLM_PROVIDER = "ollama"
+$env:OLLAMA_MODEL = "qwen3:14b"
+$env:OLLAMA_CHAT_URL = "http://127.0.0.1:11434/api/chat"
+$env:OLLAMA_TIMEOUT = "300"
+$env:NEO4J_URI = "bolt://127.0.0.1:7687"
+$env:NEO4J_USER = "neo4j"
+$env:NEO4J_PASSWORD = "YOUR_LOCAL_NEO4J_PASSWORD"
+
+.venv\Scripts\python.exe -m uvicorn phase4_backend.app.main:app `
+  --host 127.0.0.1 `
+  --port 8000
+
+Leave this terminal running.
+
+
+================================================================
+TERMINAL 3 - VERIFY FASTAPI
+================================================================
+
+Invoke-RestMethod http://127.0.0.1:8000/health
+
+Open the API documentation in a browser:
+
+http://127.0.0.1:8000/docs
+
+
+================================================================
+TERMINAL 4 - START THE SCORING CONSUMER
+================================================================
+
+cd C:\Users\akash\agentic-banking-fraud-platform
+
+$env:PYTHONPATH = ""
+$env:KAFKA_BOOTSTRAP_SERVERS = "localhost:19092"
+$env:KAFKA_CONSUMER_GROUP = "lecturer-demo-synthetic-group"
+$env:PREDICTIONS_API_URL = "http://127.0.0.1:8000/api/v1/predictions"
+
+.venv\Scripts\python.exe phase3_streaming\src\consumer.py `
+  --max-messages 3 `
+  --threshold 0.55
+
+Leave this terminal waiting for messages before starting Terminal 5.
+The consumer exits after processing exactly three transactions.
+
+
+================================================================
+TERMINAL 5 - PUBLISH EXACTLY THREE SYNTHETIC TRANSACTIONS
+================================================================
+
+cd C:\Users\akash\agentic-banking-fraud-platform
+
+$env:PYTHONPATH = ""
+$env:KAFKA_BOOTSTRAP_SERVERS = "localhost:19092"
+
+.venv\Scripts\python.exe phase3_streaming\src\synthetic_producer.py `
+  --count 3 `
+  --scenario high-value `
+  --seed 42 `
+  --start-index 9000 `
+  --interval 2
+
+This creates exactly:
+
+synthetic-000000009000
+synthetic-000000009001
+synthetic-000000009002
+
+The high-value scenario is used so the transactions are likely to exceed the
+fraud alert threshold of 0.55.
+
+
+================================================================
+CHECK THE THREE ALERTS
+================================================================
+
+$alerts = Invoke-RestMethod `
+  'http://127.0.0.1:8000/api/v1/alerts?status=open&limit=100'
+
+$alerts.items |
+  Where-Object { $_.transaction_id -like "synthetic-*" } |
+  Select-Object id, transaction_id, risk_probability, status
+
+
+================================================================
+TERMINAL 6 - START THE DASHBOARD
+================================================================
+
+cd C:\Users\akash\agentic-banking-fraud-platform\frontend
+
+npm run dev -- --host 127.0.0.1
+
+Open the dashboard:
+
+http://127.0.0.1:5173
+
+If the dashboard was already open before the code change, press Ctrl+Shift+R
+to perform a hard refresh.
+
+
+================================================================
+COMPARE ONE DASHBOARD TRANSACTION WITH THE API
+================================================================
+
+First click one transaction in the dashboard. Then use the exact same ID below.
+Do not compare different IDs.
+
+$transactionId = "synthetic-000000009001"
+
+$result = Invoke-RestMethod `
+  "http://127.0.0.1:8000/api/v1/investigations/$transactionId"
+
+$result.transaction_id
+$result.evidence.alert.risk_probability
+$result.evidence.prediction.risk_probability
+$result.evidence.graph
+$result.llm_status
+$result.llm_interpretation |
+  ConvertTo-Json -Depth 20
+
+The transaction_id printed by the terminal must match the ID in the dashboard
+header. The risk score must also match the dashboard risk score.
+
+
+================================================================
+INVESTIGATE ALL THREE SYNTHETIC TRANSACTIONS WITH OLLAMA
+================================================================
+
+$transactionIds = @(
+  "synthetic-000000009000",
+  "synthetic-000000009001",
+  "synthetic-000000009002"
+)
+
+foreach ($transactionId in $transactionIds) {
+  Write-Host "=============================================="
+  Write-Host "Investigating $transactionId"
+  Write-Host "=============================================="
+
+  Invoke-RestMethod `
+    "http://127.0.0.1:8000/api/v1/investigations/$transactionId" |
+    ConvertTo-Json -Depth 20
+}
+
+Each investigation uses:
+
+transaction
+  -> alert
+  -> XGBoost score
+  -> SHAP explanation
+  -> Neo4j graph lookup
+  -> Ollama qwen3:14b interpretation
+  -> final investigation response
+
+The Ollama model may take time to respond, especially during its first load.
+
+
+================================================================
+IF THE DASHBOARD SAYS STATUS: ERROR:RUNTIMEERROR FOR OLLAMA
+================================================================
+
+This means the fraud model worked, but the local AI explanation did not.
+The score, SHAP explanation, PostgreSQL data, and Neo4j data can still work.
+
+Use these checks in a new PowerShell terminal.
+
+CHECK 1 - Is Ollama running?
+
+Invoke-RestMethod http://127.0.0.1:11434/api/tags
+
+If this command gives a connection error, start Ollama:
+
+ollama serve
+
+Leave that terminal open. Then continue with CHECK 2.
+
+CHECK 2 - Is the qwen3:14b model installed?
+
+ollama list
+
+If qwen3:14b is not listed, download it:
+
+ollama pull qwen3:14b
+
+This download can be large and can take time.
+
+CHECK 3 - Can Ollama answer a simple question?
+
+ollama run qwen3:14b "Reply with the word OK only."
+
+The answer should contain OK. If this command fails, the problem is Ollama
+or the model installation, not the dashboard.
+
+CHECK 4 - Restart FastAPI after Ollama is ready
+
+Go back to Terminal 2. Press Ctrl+C to stop FastAPI. Start Terminal 2 again
+using the same FastAPI command. FastAPI must be running while Ollama is ready.
+
+CHECK 5 - Open the dashboard again
+
+Refresh the browser with Ctrl+Shift+R. Click one alert and wait. qwen3:14b
+can take a while during its first response.
+
+If the dashboard still shows ERROR:RUNTIMEERROR, run the API command below.
+It shows the more detailed error in the terminal running FastAPI:
+
+$transactionId = "synthetic-000000009000"
+Invoke-RestMethod `
+  "http://127.0.0.1:8000/api/v1/investigations/$transactionId" |
+  ConvertTo-Json -Depth 20
+
+Look at the FastAPI terminal for the detailed Ollama error. Common causes are:
+
+- Ollama was not running.
+- qwen3:14b was not installed.
+- Ollama was still loading the model.
+- Ollama took longer than the request timeout. Terminal 2 now sets the timeout
+  to 300 seconds because qwen3:14b can need extra time for full evidence.
+- Ollama returned text that was not valid JSON.
+
+For the lecturer, explain this honestly if it happens:
+
+"The fraud model and evidence pipeline are working. The optional local LLM
+interpretation is unavailable because Ollama did not return a valid response."
+
+
+================================================================
+OPTIONAL - LOAD ORIGINAL TRANSACTIONS INTO NEO4J
+================================================================
+
+Use this only when you want to demonstrate graph evidence from the original
+dataset. Synthetic transactions may show graph: null because they were not
+projected into Neo4j.
+
+cd C:\Users\akash\agentic-banking-fraud-platform
+
+$env:PYTHONPATH = ""
+$env:DATABASE_URL = "postgresql+psycopg://aml_user:YOUR_LOCAL_POSTGRES_PASSWORD@localhost:5432/aml_platform"
+$env:NEO4J_URI = "bolt://127.0.0.1:7687"
+$env:NEO4J_USER = "neo4j"
+$env:NEO4J_PASSWORD = "YOUR_LOCAL_NEO4J_PASSWORD"
+
+.venv\Scripts\python.exe -m phase5_graph.load_graph
+
+Open Neo4j Browser:
+
+http://localhost:7474
+
+Useful Cypher queries:
+
+MATCH (a:Account) RETURN count(a) AS accounts;
+
+MATCH (t:Transaction) RETURN count(t) AS transactions;
+
+MATCH (a:Account)-[r:SENT]->(t:Transaction)
+RETURN a, r, t
+LIMIT 25;
+
+
+================================================================
+WHAT TO EXPLAIN TO THE LECTURER
+================================================================
+
+1. The producer creates transactions and publishes them to Redpanda/Kafka.
+2. The consumer loads the XGBoost model and scores each transaction.
+3. A score above 0.55 creates an alert in PostgreSQL.
+4. SHAP explains which features increased or decreased the score.
+5. Neo4j provides account and transaction relationship evidence.
+6. Ollama qwen3:14b converts the retrieved evidence into an analyst explanation.
+7. The React dashboard is the investigator interface.
+8. The terminal is the API verification interface.
+9. Both views must use the same transaction_id when comparing results.
+10. graph: null means graph evidence was unavailable; the LLM must not invent it.
+11. A fraud alert is a high-risk signal for human review, not legal proof of fraud.
+
+Recommended lecturer demonstration order:
+
+1. Show the architecture.
+2. Start infrastructure and FastAPI.
+3. Show /health and /docs.
+4. Start the consumer.
+5. Publish exactly three synthetic transactions.
+6. Show the three risk scores and alerts.
+7. Open the dashboard.
+8. Click synthetic-000000009000, then synthetic-000000009001,
+   then synthetic-000000009002.
+9. Show that the selected transaction ID and details change.
+10. Show the SHAP explanation and Ollama interpretation.
+11. Explain graph: null honestly for synthetic records.
+12. Optionally show a real Neo4j-backed transaction.
